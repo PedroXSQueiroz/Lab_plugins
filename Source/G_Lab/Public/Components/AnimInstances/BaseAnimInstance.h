@@ -86,7 +86,7 @@ public:
 	UPROPERTY(BlueprintReadOnly)
 	FVector HitNormal;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(BlueprintReadWrite)
 	FVector HittedTraceLocation;
 
 	UPROPERTY(BlueprintReadOnly)
@@ -101,16 +101,13 @@ public:
 	UPROPERTY(BlueprintReadOnly)
 	FRotator EffectorAddtiveRotation;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(BlueprintReadWrite)
 	FRotator EffectorAddtiveRotationOffset;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	float EffectorRotationBoneLocalOffsetW;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(BlueprintReadWrite)
 	FVector FinalIKLocation;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(BlueprintReadWrite)
 	FRotator FinalIKRotation;
 
 	UPROPERTY(BlueprintReadOnly)
@@ -287,6 +284,31 @@ public:
 	FRotator CurrrentRootRotation;
 };
 
+/*************
+*TURN IN PLACE
+**************/
+USTRUCT(BlueprintType, Blueprintable)
+struct FTurnInPlaceParams
+{
+	GENERATED_BODY()
+
+public:
+
+	FTurnInPlaceParams() {};
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	TEnumAsByte<EAxis::Type> Axis;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	float MinDeviationToTrigger;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UAnimationAsset* TurnAnim;
+};
+
+/*****
+* LEAN
+******/
 USTRUCT()
 struct FLeanBone 
 {
@@ -354,6 +376,7 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	bool Dealocation { false };
+
 };
 
 USTRUCT(BlueprintType, Blueprintable)
@@ -377,9 +400,6 @@ public:
 	bool Dealocation;
 };
 
-/**
- * 
- */
 UCLASS()
 class G_LAB_API UBaseAnimInstance : public UAnimInstance
 {
@@ -481,7 +501,6 @@ public:
 	/*****
 	* LEAN
 	******/
-
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Lean")
 	TArray<FLeanParams> LeanParans;
 
@@ -493,5 +512,15 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintPure = true)
 	TArray<FLean> GetLeans();
+
+	/**************
+	* TURN IN PLACE 
+	***************/
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
+	TArray<FTurnInPlaceParams> TurnInPlaceParams;
+
+	UFUNCTION(BlueprintCallable)
+	void UpdateTurnInplace();
 
 };

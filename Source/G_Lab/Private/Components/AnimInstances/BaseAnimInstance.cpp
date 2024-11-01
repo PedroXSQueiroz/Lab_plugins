@@ -679,3 +679,7 @@ TArray<FLean> UBaseAnimInstance::GetLeans()
 
     return leans;
 }
+
+void UBaseAnimInstance::UpdateTurnInplace()
+{
+}
