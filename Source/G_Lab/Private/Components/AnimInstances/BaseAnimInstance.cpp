@@ -632,8 +632,8 @@ void UBaseAnimInstance::UpdateLean()
 
             lean.BoneChain[0].Transform.SetLocation(
                 FVector(
-                    lean.AxisEffective == EAxis::X ? currentIntensity : 0,
-                    lean.AxisEffective == EAxis::Z ? currentIntensity : 0,
+                    lean.AxisEffective == EAxis::X? currentIntensity: 0,
+                    lean.AxisEffective == EAxis::Z? currentIntensity: 0,
                     lean.AxisEffective == EAxis::Y? currentIntensity: 0
                 )
             );
@@ -647,9 +647,9 @@ void UBaseAnimInstance::UpdateLean()
                 float currentIntensity = lean.LeanIntensityCurve.GetRichCurve()->Eval(currentCurveStage);
 
                 FRotator currentAdditive = FRotator(
-                    lean.MaxAdditiveAngle.Pitch *   (lean.AxisEffective == EAxis::X ? referenceAxisValue : 0) * currentIntensity,
-                    lean.MaxAdditiveAngle.Yaw * (lean.AxisEffective == EAxis::Z ? referenceAxisValue : 0) * currentIntensity,
-                    lean.MaxAdditiveAngle.Roll * (lean.AxisEffective == EAxis::Y ? referenceAxisValue : 0)   * currentIntensity
+                    lean.MaxAdditiveAngle * (lean.AxisEffective == EAxis::X ? referenceAxisValue : 0) * currentIntensity,
+                    lean.MaxAdditiveAngle * (lean.AxisEffective == EAxis::Z ? referenceAxisValue : 0) * currentIntensity,
+                    lean.MaxAdditiveAngle * (lean.AxisEffective == EAxis::Y ? referenceAxisValue : 0)   * currentIntensity
                 ) - diffApplied;
 
                 currentBone.Transform.SetRotation(

@@ -351,10 +351,10 @@ public:
 	FRuntimeFloatCurve  LeanIntensityCurve;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FRotator MaxAdditiveAngle;
+	float MaxAdditiveAngle;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FVector MaxAdditiveDealocation;
+	float MaxAdditiveDealocation;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	float Velocity {0.8};
