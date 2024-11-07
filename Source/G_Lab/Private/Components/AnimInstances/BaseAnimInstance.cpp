@@ -581,48 +581,17 @@ void UBaseAnimInstance::UpdateLean()
         float curveOffset = 1.0f / (float) lean.BoneChain.Num();
         float currentCurveStage = 0;
        
-        FVector lastInput = charac->GetVelocity();
-        lastInput.Normalize();
-
-        if (lastInput.IsZero()) 
-        {
-            lastInput = charac->GetActorForwardVector();
-        }
-
-        FRotator desiredRotationInput = lastInput.Rotation();
-
-        FRotator desiredRotationReference = FRotator(
-            lean.AxisReference == EAxis::X ? desiredRotationInput.Pitch: 0,
-            lean.AxisReference == EAxis::Z ? desiredRotationInput.Yaw : 0,
-            lean.AxisReference == EAxis::Y ? desiredRotationInput.Roll : 0
+        EAxis::Type axisReference = lean.AxisReference;
+        FRotator desiredRotationReference;
+        FRotator diffAngle;
+        float referenceAxisValue = this->GetDeviationFromDesiredDirectionByAxis(
+            charac,
+            axisReference,
+            lean.PreviewDiffLeanAngle,
+            lean.Velocity,
+            desiredRotationReference,
+            diffAngle
         );
-
-        FRotator currentRotationInput = charac->GetActorRotation();
-
-        FRotator currentRotationReference = FRotator(
-            lean.AxisReference == EAxis::X ? currentRotationInput.Pitch: 0,
-            lean.AxisReference == EAxis::Z ? currentRotationInput.Yaw: 0,
-            lean.AxisReference == EAxis::Y ? currentRotationInput.Roll: 0
-        );
-
-
-        FRotator rawDiffAngle = UKismetMathLibrary::NormalizedDeltaRotator(currentRotationReference, desiredRotationReference);
-
-
-        FRotator diffAngle = UKismetMathLibrary::RLerp(
-                lean.PreviewDiffLeanAngle
-            ,   rawDiffAngle
-            ,   lean.Velocity
-            ,   false
-        );
-        
-        float referenceAxisValue = 0;
-        switch (lean.AxisReference) 
-        {
-        case EAxis::X: referenceAxisValue = diffAngle.Pitch; break;
-        case EAxis::Y: referenceAxisValue = diffAngle.Roll; break;
-        case EAxis::Z: referenceAxisValue = diffAngle.Yaw; break;
-        }
 
         FRotator diffApplied = FRotator::ZeroRotator;
 
@@ -649,7 +618,7 @@ void UBaseAnimInstance::UpdateLean()
                 FRotator currentAdditive = FRotator(
                     lean.MaxAdditiveAngle * (lean.AxisEffective == EAxis::X ? referenceAxisValue : 0) * currentIntensity,
                     lean.MaxAdditiveAngle * (lean.AxisEffective == EAxis::Z ? referenceAxisValue : 0) * currentIntensity,
-                    lean.MaxAdditiveAngle * (lean.AxisEffective == EAxis::Y ? referenceAxisValue : 0)   * currentIntensity
+                    lean.MaxAdditiveAngle * (lean.AxisEffective == EAxis::Y ? referenceAxisValue : 0) * currentIntensity
                 ) - diffApplied;
 
                 currentBone.Transform.SetRotation(
@@ -680,6 +649,167 @@ TArray<FLean> UBaseAnimInstance::GetLeans()
     return leans;
 }
 
-void UBaseAnimInstance::UpdateTurnInplace()
+void UBaseAnimInstance::UpdateTurnInplace(float DeltaTime)
 {
+    ACharacter* charac = Cast<ACharacter>(this->GetOwningActor());
+
+    if (!charac) 
+    {
+        return;
+    }
+
+    int index = 0;
+    for (FTurnInPlaceParams params : this->TurnInPlaceParams)
+    {
+        FRotator dummy = FRotator::ZeroRotator;
+        FRotator previewDesiredAngle = FRotator::ZeroRotator;
+        
+        float currentDeviation = this->GetDeviationFromDesiredDirectionByAxis(
+            charac,
+            params.Axis,
+            FRotator::ZeroRotator,
+            1,
+            previewDesiredAngle,
+            dummy
+        );
+
+        if (    ( ( currentDeviation > params.MinDeviationToTrigger && params.MinDeviationToTrigger > 0) && !this->IsTurning )
+            ||  ( ( currentDeviation < params.MinDeviationToTrigger && params.MinDeviationToTrigger < 0) && !this->IsTurning ) )
+        {
+            this->IsTurning = true;
+            this->CurrentTurnInPlaceAnim = params.TurnAnim;
+            this->CurrentTurnInPlacePlayRate = params.PlayRate;
+            this->CurrentTurningAnimLength = ( ( params.TurnAnim->GetPlayLength() - params.EndPaddingAnimTime - params.StartingPointAnim ) / params.PlayRate );
+            this->CurrentTurningProgression = 0;
+            this->InitialtTurningDirection = charac->GetActorRotation();
+            this->TargetTurningDirection = previewDesiredAngle;
+            this->CurrentTurnInPlaceStartOffset = params.StartingPointAnim;
+
+            UE_LOG(LogTemp, Log, TEXT("TURNING STARTING, PARAM SET: %i"), index)
+        }
+        else if (this->IsTurning) 
+        {
+            float currentTurningRate = this->CurrentTurningProgression / this->CurrentTurningAnimLength;
+
+
+            if (currentTurningRate >= 1) 
+            {
+                this->IsTurning = false;
+                this->CurrentTurningProgression = 0;
+                UE_LOG(LogTemp, Log, TEXT("TURNING FINISHED"))
+            }
+            else 
+            {
+                this->CurrentTurningProgression += DeltaTime;
+
+                float turningAlpha = params.IntensityCurve.GetRichCurve()->Eval(currentTurningRate);
+                this->CurrentTurnInPlaceMaxVelocity = params.MaxVelocityByTurningRate.GetRichCurve()->Eval(currentTurningRate);
+
+                UE_LOG(LogTemp, Log, TEXT("[Turning] rate: %.2f alpha: %.2f"), currentTurningRate, turningAlpha);
+                
+                currentDeviation = this->GetDeviationFromDesiredDirectionByAxis(
+                    charac,
+                    params.Axis,
+                    FRotator::ZeroRotator,
+                    1,
+                    previewDesiredAngle,
+                    dummy
+                );
+                this->TargetTurningDirection = previewDesiredAngle;
+
+
+                this->CurrentTurningDirection = UKismetMathLibrary::RLerp(
+                    this->InitialtTurningDirection,
+                    previewDesiredAngle,
+                    turningAlpha,
+                    true
+                );
+
+                this->GetOwningActor()->SetActorRotation(this->CurrentTurningDirection);
+            }
+
+        }
+
+        index++;
+    }
+
+
+}
+
+bool UBaseAnimInstance::GetIsTurning()
+{
+    return this->IsTurning;
+}
+
+float UBaseAnimInstance::GetDeviationFromDesiredDirectionByAxis(
+        ACharacter* charac
+    ,   EAxis::Type axisReference
+    ,   FRotator previewDiffAngleLerp
+    ,   float lerp
+    ,   FRotator& previewDesiredAngle
+    ,   FRotator& diffAngle
+)
+{
+    FRotator desiredRotationInput = this->GetForwardRotation(charac);
+
+    FRotator desiredRotationReference = FRotator(
+        axisReference == EAxis::X ? desiredRotationInput.Pitch : 0,
+        axisReference == EAxis::Z ? desiredRotationInput.Yaw : 0,
+        axisReference == EAxis::Y ? desiredRotationInput.Roll : 0
+    );
+
+    previewDesiredAngle.Pitch = desiredRotationInput.Pitch;
+    previewDesiredAngle.Yaw = desiredRotationInput.Yaw;
+    previewDesiredAngle.Roll = desiredRotationInput.Roll;
+
+    FRotator currentRotationInput = charac->GetActorRotation();
+
+    FRotator currentRotationReference = FRotator(
+        axisReference == EAxis::X ? currentRotationInput.Pitch : 0,
+        axisReference == EAxis::Z ? currentRotationInput.Yaw : 0,
+        axisReference == EAxis::Y ? currentRotationInput.Roll : 0
+    );
+
+
+    FRotator rawDiffAngle = UKismetMathLibrary::NormalizedDeltaRotator(currentRotationReference, desiredRotationReference);
+    /*FRotator rawDiffAngle = FRotator(
+        axisReference == EAxis::X ? currentRotationInput.Pitch - desiredRotationReference.Pitch : 0,
+        axisReference == EAxis::Z ? currentRotationInput.Yaw - desiredRotationReference.Yaw : 0,
+        axisReference == EAxis::Y ? currentRotationInput.Roll - desiredRotationReference.Roll : 0
+    );*/
+
+
+    FRotator currentDiffAngle = UKismetMathLibrary::RLerp(
+            previewDiffAngleLerp
+        ,   rawDiffAngle
+        ,   lerp
+        ,   false
+    );
+
+    diffAngle.Pitch = currentDiffAngle.Pitch;
+    diffAngle.Yaw   = currentDiffAngle.Yaw;
+    diffAngle.Roll  = currentDiffAngle.Roll;
+
+    float referenceAxisValue = 0;
+    switch (axisReference)
+    {
+        case EAxis::X: return diffAngle.Pitch;
+        case EAxis::Y: return diffAngle.Roll;
+        case EAxis::Z: return diffAngle.Yaw;
+    }
+    
+    return 0.0f;
+}
+
+FRotator UBaseAnimInstance::GetForwardRotation(ACharacter* charac)
+{
+    FVector lastInput = charac->GetVelocity();
+    lastInput.Normalize();
+
+    if (lastInput.IsZero())
+    {
+        lastInput = charac->GetActorForwardVector();
+    }
+
+    return lastInput.Rotation();
 }

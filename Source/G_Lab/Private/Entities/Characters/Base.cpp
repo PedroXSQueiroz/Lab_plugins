@@ -6,6 +6,8 @@
 #include <EnhancedInputSubsystems.h>
 #include <EnhancedInputComponent.h>
 
+#include <Components/AnimInstances/BaseAnimInstance.h>
+
 // Sets default values
 ABase::ABase()
 {
@@ -64,7 +66,15 @@ void ABase::Move(const FInputActionValue& value)
 	FVector inputDirection = value.Get<FVector>();
 	FVector movementDirection = FRotator( 0, this->GetControlRotation().Yaw - 90, 0 ).RotateVector(inputDirection);
 
-	this->AddMovementInput(FVector(movementDirection.X, movementDirection.Y, 0), inputDirection.Length());
+	UAnimInstance* animInstance = this->GetMesh()->GetAnimInstance();
+	UBaseAnimInstance* baseAnim = Cast<UBaseAnimInstance>(animInstance);
+	
+
+	float intensity = baseAnim && baseAnim->GetIsTurning() ? inputDirection.Length() * baseAnim->CurrentTurnInPlaceMaxVelocity : inputDirection.Length();
+
+	this->AddMovementInput(FVector(movementDirection.X, movementDirection.Y, 0), intensity);
+	
+	
 
 }
 

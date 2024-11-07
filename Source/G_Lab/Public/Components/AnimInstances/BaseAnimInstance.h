@@ -295,6 +295,9 @@ struct FTurnInPlaceParams
 public:
 
 	FTurnInPlaceParams() {};
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FName RootBone;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	TEnumAsByte<EAxis::Type> Axis;
@@ -303,7 +306,22 @@ public:
 	float MinDeviationToTrigger;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	UAnimationAsset* TurnAnim;
+	UAnimSequenceBase* TurnAnim;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FRuntimeFloatCurve IntensityCurve;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FRuntimeFloatCurve MaxVelocityByTurningRate;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	float EndPaddingAnimTime;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	float PlayRate{1};
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	float StartingPointAnim;
 };
 
 /*****
@@ -348,7 +366,7 @@ public:
 	FName Effector;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FRuntimeFloatCurve  LeanIntensityCurve;
+	FRuntimeFloatCurve LeanIntensityCurve;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	float MaxAdditiveAngle;
@@ -520,7 +538,55 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
 	TArray<FTurnInPlaceParams> TurnInPlaceParams;
 
-	UFUNCTION(BlueprintCallable)
-	void UpdateTurnInplace();
+	UPROPERTY(BlueprintReadWrite)
+	UAnimSequenceBase* CurrentTurnInPlaceAnim;
 
+	UPROPERTY(BlueprintReadWrite)
+	float CurrentTurnInPlacePlayRate;
+
+	UPROPERTY(BlueprintReadWrite)
+	float CurrentTurnInPlaceStartOffset;
+
+	UPROPERTY(BlueprintReadWrite)
+	float CurrentTurnInPlaceMaxVelocity {1};
+
+	UFUNCTION(BlueprintCallable)
+	void UpdateTurnInplace(float DeltaTime);
+
+	bool GetIsTurning();
+
+protected:
+	UPROPERTY(BlueprintReadOnly)
+	bool IsTurning;
+
+	UPROPERTY(BlueprintReadOnly)
+	float CurrentTurningAnimLength;
+
+	UPROPERTY(BlueprintReadOnly)
+	float CurrentTurningProgression{0};
+
+	UPROPERTY(BlueprintReadOnly)
+	FRotator CurrentTurningDirection;
+
+	UPROPERTY(BlueprintReadOnly)
+	FRotator InitialtTurningDirection;
+
+	UPROPERTY(BlueprintReadOnly)
+	FRotator TargetTurningDirection;
+
+	/*******
+	*COMMONS
+	********/
+protected:
+	
+	float GetDeviationFromDesiredDirectionByAxis(
+			ACharacter* charac
+		,	EAxis::Type axisReference
+		,	FRotator previewDiffAngleLerp
+		,	float lerp
+		,	FRotator& previewDesiredAngle
+		,	FRotator& diffAngle 
+	);
+
+	FRotator GetForwardRotation(ACharacter* charac);
 };
