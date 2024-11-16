@@ -511,48 +511,62 @@ bool UBaseAnimInstance::SetupLean()
     
     ACharacter* charac = Cast<ACharacter>(this->GetOwningActor());
     
-    for (FLeanParams& lean : this->LeanParans)
+    for (ULeanModifierParams* leanParam : this->LeanParams)
     {
-        TArray<FLeanBone> chain{ FLeanBone( lean.Effector, FTransform() ) };
-        FLeanBone currentBone;
 
-        FName currentBoneName = FName("");
-
-        lean.PreviewLeanAngle = FRotator(
-            0,
-            charac->GetControlRotation().Yaw,
-            0
-        );
-
-        do 
+        bool succeded = false;
+        if (leanParam->IsA(ULeanProceduralParams::StaticClass()))
         {
-            currentBoneName = this->GetOwningComponent()->GetParentBone(chain.Last().Name);
-
-            if (!currentBoneName.IsNone())
-            {
-                chain.Add(FLeanBone(currentBoneName, FTransform()));
-            }
-
-        }while(
-                !currentBoneName.IsEqual(lean.Root)
-            &&  !currentBoneName.IsNone()
-        );
-
-        if (currentBoneName.IsEqual(lean.Root))
-        {
-            Algo::Reverse(chain);
-            lean.BoneChain = chain;
+            ULeanProceduralParams* lean = Cast<ULeanProceduralParams>(leanParam);
+            succeded = SetupProceduralLean(lean, charac);
         }
-        else 
-        {
-            return false;
-        }
-
+        
+        if (!succeded) return false;
     }
 
-    return false;
+    return true;
 
 }
+
+#pragma optimize("", off)
+bool UBaseAnimInstance::SetupProceduralLean(ULeanProceduralParams* lean, ACharacter* charac)
+{
+    TArray<FLeanBone> chain{ FLeanBone(lean->Effector, FTransform()) };
+    FLeanBone currentBone;
+
+    FName currentBoneName = FName("");
+
+    lean->PreviewLeanAngle = FRotator(
+        0,
+        charac->GetControlRotation().Yaw,
+        0
+    );
+
+    do
+    {
+        currentBoneName = this->GetOwningComponent()->GetParentBone(chain.Last().Name);
+
+        if (!currentBoneName.IsNone())
+        {
+            chain.Add(FLeanBone(currentBoneName, FTransform()));
+        }
+
+    } while (
+        !currentBoneName.IsEqual(lean->Root)
+        && !currentBoneName.IsNone()
+        );
+
+    if (currentBoneName.IsEqual(lean->Root))
+    {
+        Algo::Reverse(chain);
+        lean->BoneChain = chain;
+
+        return true;
+    }
+    
+    return false;
+}
+#pragma optimize("", on)
 
 #pragma optimize("", off)
 void UBaseAnimInstance::UpdateLean()
@@ -564,75 +578,82 @@ void UBaseAnimInstance::UpdateLean()
         return;
     }
 
-    for (int leanIndex = 0; leanIndex < this->LeanParans.Num(); leanIndex++) 
+    for (int leanIndex = 0; leanIndex < this->LeanParams.Num(); leanIndex++) 
     {
-        FLeanParams& lean = this->LeanParans[leanIndex];
+        ULeanModifierParams* leanParams = this->LeanParams[leanIndex];
         
-        if (lean.BoneChain.IsEmpty()) 
+        if(leanParams->IsA(ULeanProceduralParams::StaticClass()))
         {
-            continue;
-        }
-
-        if (lean.AxisReference == EAxis::None || lean.AxisEffective == EAxis::None) 
-        {
-            continue;
-        }
-        
-        float curveOffset = 1.0f / (float) lean.BoneChain.Num();
-        float currentCurveStage = 0;
-       
-        EAxis::Type axisReference = lean.AxisReference;
-        FRotator desiredRotationReference;
-        FRotator diffAngle;
-        float referenceAxisValue = this->GetDeviationFromDesiredDirectionByAxis(
-            charac,
-            axisReference,
-            lean.PreviewDiffLeanAngle,
-            lean.Velocity,
-            desiredRotationReference,
-            diffAngle
-        );
-
-        FRotator diffApplied = FRotator::ZeroRotator;
-
-        if (lean.Dealocation) 
-        {
-            float currentIntensity = lean.LeanIntensityCurve.GetRichCurve()->Eval(referenceAxisValue);
-
-            lean.BoneChain[0].Transform.SetLocation(
-                FVector(
-                    lean.AxisEffective == EAxis::X? currentIntensity: 0,
-                    lean.AxisEffective == EAxis::Z? currentIntensity: 0,
-                    lean.AxisEffective == EAxis::Y? currentIntensity: 0
-                )
-            );
-            lean.BoneChain[0].Dealocation = true;
-        }
-        else 
-        {
-            for (FLeanBone& currentBone : lean.BoneChain) 
+            ULeanProceduralParams* lean = Cast<ULeanProceduralParams>(leanParams);
+            
+            if (lean->BoneChain.IsEmpty()) 
             {
-            
-                float currentIntensity = lean.LeanIntensityCurve.GetRichCurve()->Eval(currentCurveStage);
-
-                FRotator currentAdditive = FRotator(
-                    lean.MaxAdditiveAngle * (lean.AxisEffective == EAxis::X ? referenceAxisValue : 0) * currentIntensity,
-                    lean.MaxAdditiveAngle * (lean.AxisEffective == EAxis::Z ? referenceAxisValue : 0) * currentIntensity,
-                    lean.MaxAdditiveAngle * (lean.AxisEffective == EAxis::Y ? referenceAxisValue : 0) * currentIntensity
-                ) - diffApplied;
-
-                currentBone.Transform.SetRotation(
-                    currentAdditive.Quaternion()
-                );
-            
-                currentCurveStage += curveOffset;
-                diffApplied += currentAdditive;
-
+                continue;
             }
+
+            if (lean->AxisReference == EAxis::None || lean->AxisEffective == EAxis::None) 
+            {
+                continue;
+            }
+        
+            float curveOffset = 1.0f / (float) lean->BoneChain.Num();
+            float currentCurveStage = 0;
+       
+            EAxis::Type axisReference = lean->AxisReference;
+            FRotator desiredRotationReference;
+            FRotator diffAngle;
+            float referenceAxisValue = this->GetDeviationFromDesiredDirectionByAxis(
+                charac,
+                axisReference,
+                lean->PreviewDiffLeanAngle,
+                lean->Velocity,
+                desiredRotationReference,
+                diffAngle
+            );
+
+            FRotator diffApplied = FRotator::ZeroRotator;
+
+            if (lean->Dealocation) 
+            {
+                float currentIntensity = lean->LeanIntensityCurve.GetRichCurve()->Eval(referenceAxisValue);
+
+                lean->BoneChain[0].Transform.SetLocation(
+                    FVector(
+                        lean->AxisEffective == EAxis::X? currentIntensity: 0,
+                        lean->AxisEffective == EAxis::Z? currentIntensity: 0,
+                        lean->AxisEffective == EAxis::Y? currentIntensity: 0
+                    )
+                );
+                lean->BoneChain[0].Dealocation = true;
+            }
+            else 
+            {
+                for (FLeanBone& currentBone : lean->BoneChain) 
+                {
+            
+                    float currentIntensity = lean->LeanIntensityCurve.GetRichCurve()->Eval(currentCurveStage);
+
+                    FRotator currentAdditive = FRotator(
+                        lean->MaxAdditiveAngle * (lean->AxisEffective == EAxis::X ? referenceAxisValue : 0) * currentIntensity,
+                        lean->MaxAdditiveAngle * (lean->AxisEffective == EAxis::Z ? referenceAxisValue : 0) * currentIntensity,
+                        lean->MaxAdditiveAngle * (lean->AxisEffective == EAxis::Y ? referenceAxisValue : 0) * currentIntensity
+                    ) - diffApplied;
+
+                    currentBone.Transform.SetRotation(
+                        currentAdditive.Quaternion()
+                    );
+            
+                    currentCurveStage += curveOffset;
+                    diffApplied += currentAdditive;
+
+                }
+            }
+
+            lean->PreviewDiffLeanAngle = diffAngle;
+            lean->PreviewLeanAngle = desiredRotationReference;
+        
         }
 
-        lean.PreviewDiffLeanAngle = diffAngle;
-        lean.PreviewLeanAngle = desiredRotationReference;
     }
 }
 #pragma optimize("", on)
@@ -641,12 +662,57 @@ TArray<FLean> UBaseAnimInstance::GetLeans()
 {
     TArray leans = TArray<FLean>();
     
-    for (FLeanParams leanParam : this->LeanParans) 
+    for (ULeanModifierParams* leanParam : this->LeanParams)
     {
-        leans.Add(FLean(leanParam.BoneChain, leanParam.Dealocation));
+        if (leanParam && leanParam->IsA(ULeanProceduralParams::StaticClass()))
+        {
+            ULeanProceduralParams* lean = Cast<ULeanProceduralParams>(leanParam);
+            leans.Add(FLean(lean->BoneChain, lean->Dealocation));
+        }
+
     }
 
     return leans;
+}
+
+TArray<FLeanBlend> UBaseAnimInstance::GetBlendLeans()
+{
+    TArray leans = TArray<FLeanBlend>();
+
+    for (ULeanModifierParams* leanParam : this->LeanParams)
+    {
+        if (leanParam && leanParam->IsA(ULeanBlendingAnimParams::StaticClass()))
+        {
+            ULeanBlendingAnimParams* lean = Cast<ULeanBlendingAnimParams>(leanParam);
+            leans.Add(FLeanBlend( 
+                    lean->CurrentIntensity > 0 ? lean->PositiveLeanAnim : lean->NegativeLeanAnim,
+                    lean->CurrentIntensity,
+                    lean->AxisReference
+                )
+            );
+        }
+
+    }
+
+    return leans;
+}
+
+FLeanBlend UBaseAnimInstance::GetLeanBlendByAxis(TArray<FLeanBlend> leans, EAxis::Type axis)
+{
+    for (FLeanBlend lean : leans) 
+    {
+        if (lean.Axis == axis) 
+        {
+            return lean;
+        }
+    }
+    
+    return FLeanBlend();
+}
+
+bool UBaseAnimInstance::IsBlendLeanNone(FLeanBlend lean)
+{
+    return lean.GetIsNone();
 }
 
 void UBaseAnimInstance::UpdateTurnInplace(float DeltaTime)
@@ -812,4 +878,9 @@ FRotator UBaseAnimInstance::GetForwardRotation(ACharacter* charac)
     }
 
     return lastInput.Rotation();
+}
+
+bool FLeanBlend::GetIsNone()
+{
+    return this->IsNone;
 }

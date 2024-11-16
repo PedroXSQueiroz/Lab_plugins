@@ -352,13 +352,18 @@ public:
 	bool Dealocation{false};
 };
 
-USTRUCT(BlueprintType, Blueprintable)
-struct FLeanParams 
+UCLASS(BlueprintType, Blueprintable, EditInlineNew, DefaultToInstanced)
+class ULeanModifierParams : public UObject
+{
+	GENERATED_BODY()
+};
+
+UCLASS(BlueprintType, Blueprintable, EditInlineNew, DefaultToInstanced)
+class ULeanProceduralParams : public ULeanModifierParams
 {
 	GENERATED_BODY()
 
 public:
-
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FName Root;
 
@@ -375,7 +380,7 @@ public:
 	float MaxAdditiveDealocation;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	float Velocity {0.8};
+	float Velocity{ 0.8 };
 
 	UPROPERTY()
 	TArray<FLeanBone> BoneChain;
@@ -393,7 +398,32 @@ public:
 	TEnumAsByte<EAxis::Type> AxisEffective;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	bool Dealocation { false };
+	bool Dealocation{ false };
+};
+
+UCLASS(BlueprintType, Blueprintable, EditInlineNew, DefaultToInstanced)
+class ULeanBlendingAnimParams : public ULeanModifierParams
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FRuntimeFloatCurve LeanIntensityCurve;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	TEnumAsByte<EAxis::Type> AxisReference;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UAnimSequenceBase* PositiveLeanAnim;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UAnimSequenceBase* NegativeLeanAnim;
+
+	UPROPERTY()
+	float CurrentIntensity;
+
+
 
 };
 
@@ -417,6 +447,40 @@ public:
 	UPROPERTY()
 	bool Dealocation;
 };
+
+USTRUCT(BlueprintType, Blueprintable)
+struct FLeanBlend
+{
+	GENERATED_BODY()
+
+public:
+
+	FLeanBlend(): IsNone(true) {}
+	
+	FLeanBlend(UAnimSequenceBase* anim, float intensity, EAxis::Type axis)
+	:	LeanAnim(anim)
+	,	Intensity(intensity)
+	,	Axis(axis)
+	,	IsNone(false)
+	{};
+
+	UPROPERTY()
+	TEnumAsByte<EAxis::Type> Axis;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	float Intensity;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UAnimSequenceBase* LeanAnim;
+
+	bool GetIsNone();
+
+private:
+
+	bool IsNone;
+
+};
+
 
 UCLASS()
 class G_LAB_API UBaseAnimInstance : public UAnimInstance
@@ -519,17 +583,30 @@ public:
 	/*****
 	* LEAN
 	******/
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Lean")
-	TArray<FLeanParams> LeanParans;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Instanced, Category = "Settings|Lean", meta = (AllowInherited = true))
+	TArray<ULeanModifierParams*> LeanParams;
+	/*UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Lean")
+	TArray<FLeanParams> LeanParans;*/
 
 	UFUNCTION(BlueprintCallable)
 	bool SetupLean();
+
+	bool SetupProceduralLean(ULeanProceduralParams* lean, ACharacter* charac);
 
 	UFUNCTION(BlueprintCallable)
 	void UpdateLean();
 
 	UFUNCTION(BlueprintCallable, BlueprintPure = true)
 	TArray<FLean> GetLeans();
+
+	UFUNCTION(BlueprintCallable, BlueprintPure = true)
+	TArray<FLeanBlend> GetBlendLeans();
+
+	UFUNCTION(BlueprintCallable, BlueprintPure = true)
+	FLeanBlend GetLeanBlendByAxis(TArray<FLeanBlend> leans, EAxis::Type axis);
+
+	UFUNCTION(BlueprintCallable, BlueprintPure = true)
+	bool IsBlendLeanNone(FLeanBlend lean);
 
 	/**************
 	* TURN IN PLACE 
