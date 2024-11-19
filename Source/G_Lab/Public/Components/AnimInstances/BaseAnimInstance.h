@@ -605,7 +605,7 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure = true)
 	FLeanBlend GetLeanBlendByAxis(TArray<FLeanBlend> leans, EAxis::Type axis);
 
-	UFUNCTION(BlueprintCallable, BlueprintPure = true)
+	UFUNCTION(BlueprintCallable, BlueprintPure = true, meta = (BlueprintThreadSafe))
 	bool IsBlendLeanNone(FLeanBlend lean);
 
 	/**************
